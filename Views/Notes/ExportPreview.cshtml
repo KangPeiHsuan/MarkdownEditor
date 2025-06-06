@@ -1,0 +1,55 @@
+@model Note
+
+@{
+    ViewData["Title"] = "匯出預覽 - " + Model.Title;
+    var html = ViewBag.Html as string;
+}
+
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h4>匯出預覽：@Model.Title</h4>
+                <div class="btn-group">
+                    <button class="btn btn-danger" onclick="exportToPdf(@Model.Id)">
+                        <i class="fas fa-file-pdf"></i> 匯出 PDF
+                    </button>
+                    <button class="btn btn-primary" onclick="exportToWord(@Model.Id)">
+                        <i class="fas fa-file-word"></i> 匯出 Word
+                    </button>
+                    <a href="@Url.Action("Editor", new { id = Model.Id })" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left"></i> 返回編輯
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">預覽內容</h5>
+                    <small class="text-muted">分類：@Model.Category.Name | 更新時間：@Model.UpdatedAt.ToString("yyyy-MM-dd HH:mm")</small>
+                </div>
+                <div class="card-body">
+                    <div class="export-preview">
+                        @Html.Raw(html)
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function exportToPdf(id) {
+            window.location.href = '@Url.Action("ExportPdf", "Notes")/' + id;
+        }
+
+        function exportToWord(id) {
+            window.location.href = '@Url.Action("ExportWord", "Notes")/' + id;
+        }
+    </script>
+} 

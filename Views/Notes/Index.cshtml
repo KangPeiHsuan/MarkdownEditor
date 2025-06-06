@@ -1,0 +1,158 @@
+@model IEnumerable<Category>
+
+@{
+    ViewData["Title"] = "筆記列表";
+}
+
+<div class="row">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">分類</h5>
+                <button class="btn btn-sm btn-primary" onclick="showAddCategoryModal()">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <ul class="list-group list-group-flush" id="categoryList">
+                    @foreach (var category in Model)
+                    {
+                        <li class="list-group-item d-flex justify-content-between align-items-center category-item" data-category-id="@category.Id">
+                            <div>
+                                <h6 class="mb-0">@category.Name</h6>
+                                <small class="text-muted">@category.Notes.Count 篇筆記</small>
+                            </div>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-secondary" onclick="editCategory(@category.Id, '@Html.Raw(Json.Serialize(category.Name))', '@Html.Raw(Json.Serialize(category.Description ?? ""))')">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                @if (category.Id != 1)
+                                {
+                                    <button class="btn btn-outline-danger" onclick="deleteCategory(@category.Id)">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                }
+                            </div>
+                        </li>
+                    }
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-9">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4>筆記</h4>
+            <a href="@Url.Action("Editor", "Notes")" class="btn btn-primary">
+                <i class="fas fa-plus"></i> 新增筆記
+            </a>
+        </div>
+        
+        <div id="notesContainer">
+            @foreach (var category in Model)
+            {
+                @foreach (var note in category.Notes)
+                {
+                    <div class="card mb-3 note-card" data-category-id="@category.Id">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <h5 class="card-title">
+                                        <a href="@Url.Action("Editor", "Notes", new { id = note.Id })" class="text-decoration-none">
+                                            @note.Title
+                                        </a>
+                                    </h5>
+                                    <p class="card-text text-muted">
+                                        @if (note.Content.Length > 100)
+                                        {
+                                            @(note.Content.Substring(0, 100) + "...")
+                                        }
+                                        else
+                                        {
+                                            @note.Content
+                                        }
+                                    </p>
+                                    <small class="text-muted">
+                                        <i class="fas fa-folder"></i> @category.Name |
+                                        <i class="fas fa-clock"></i> @note.UpdatedAt.ToString("yyyy-MM-dd HH:mm")
+                                    </small>
+                                </div>
+                                <div class="btn-group">
+                                    <a href="@Url.Action("Editor", "Notes", new { id = note.Id })" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="@Url.Action("ExportPreview", "Notes", new { id = note.Id })" class="btn btn-sm btn-outline-success">
+                                        <i class="fas fa-download"></i>
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteNote(@note.Id)">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+<!-- 新增分類模態框 -->
+<div class="modal fade" id="addCategoryModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">新增分類</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addCategoryForm">
+                    <div class="mb-3">
+                        <label for="categoryName" class="form-label">分類名稱</label>
+                        <input type="text" class="form-control" id="categoryName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="categoryDescription" class="form-label">描述</label>
+                        <textarea class="form-control" id="categoryDescription" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveCategory()">儲存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 編輯分類模態框 -->
+<div class="modal fade" id="editCategoryModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">編輯分類</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editCategoryForm">
+                    <input type="hidden" id="editCategoryId">
+                    <div class="mb-3">
+                        <label for="editCategoryName" class="form-label">分類名稱</label>
+                        <input type="text" class="form-control" id="editCategoryName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editCategoryDescription" class="form-label">描述</label>
+                        <textarea class="form-control" id="editCategoryDescription" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="updateCategory()">更新</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/notes-index.js"></script>
+} 

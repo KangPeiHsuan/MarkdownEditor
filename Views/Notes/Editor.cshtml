@@ -1,0 +1,83 @@
+@model Note
+
+@{
+    ViewData["Title"] = Model.Id == 0 ? "新增筆記" : "編輯筆記";
+    var categories = ViewBag.Categories as List<Category>;
+}
+
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <div class="input-group">
+                <span class="input-group-text">標題</span>
+                <input type="text" class="form-control" id="noteTitle" value="@Model.Title" placeholder="請輸入筆記標題">
+            </div>
+        </div>
+        <div class="col-md-3">
+            <select class="form-select" id="categorySelect">
+                @if (categories != null)
+                {
+                    @foreach (var category in categories)
+                    {
+                        <option value="@category.Id" selected="@(Model.CategoryId == category.Id)">
+                            @category.Name
+                        </option>
+                    }
+                }
+            </select>
+        </div>
+        <div class="col-md-3">
+            <div class="btn-group w-100">
+                <button class="btn btn-outline-primary" id="saveBtn">
+                    <i class="fas fa-save"></i> 儲存
+                </button>
+                <button class="btn btn-outline-success" id="exportBtn" @(Model.Id == 0 ? "disabled" : "")>
+                    <i class="fas fa-download"></i> 匯出
+                </button>
+                <a href="@Url.Action("Index")" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i> 返回
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="btn-group" role="group">
+                <input type="radio" class="btn-check" name="viewMode" id="editMode" value="edit" checked>
+                <label class="btn btn-outline-primary" for="editMode">
+                    <i class="fas fa-edit"></i> 編輯模式
+                </label>
+
+                <input type="radio" class="btn-check" name="viewMode" id="previewMode" value="preview">
+                <label class="btn btn-outline-primary" for="previewMode">
+                    <i class="fas fa-eye"></i> 預覽模式
+                </label>
+
+                <input type="radio" class="btn-check" name="viewMode" id="splitMode" value="split">
+                <label class="btn btn-outline-primary" for="splitMode">
+                    <i class="fas fa-columns"></i> 分割模式
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <div class="row editor-container">
+        <div class="col-md-12" id="editorCol">
+            <div class="editor-wrapper">
+                <textarea id="markdownEditor" class="form-control editor-textarea" placeholder="請輸入 Markdown 內容...">@Model.Content</textarea>
+            </div>
+        </div>
+        <div class="col-md-6 d-none" id="previewCol">
+            <div class="preview-wrapper">
+                <div id="markdownPreview" class="preview-content"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<input type="hidden" id="noteId" value="@Model.Id">
+
+@section Scripts {
+    <script src="~/js/markdown-editor.js"></script>
+} 
