@@ -85,11 +85,17 @@ function switchViewMode(mode) {
     currentViewMode = mode;
     const editorCol = $('#editorCol');
     const previewCol = $('#previewCol');
+    const editor = $('#markdownEditor');
     
     switch (mode) {
         case 'edit':
-            editorCol.removeClass('col-md-6').addClass('col-md-12');
+            editorCol.removeClass('col-md-6 d-none').addClass('col-md-12');
             previewCol.addClass('d-none');
+            // 重新聚焦編輯器並確保可編輯
+            setTimeout(() => {
+                editor.focus();
+                editor.prop('disabled', false);
+            }, 100);
             break;
             
         case 'preview':
@@ -99,9 +105,13 @@ function switchViewMode(mode) {
             break;
             
         case 'split':
-            editorCol.removeClass('col-md-12').addClass('col-md-6');
+            editorCol.removeClass('col-md-12 d-none').addClass('col-md-6');
             previewCol.removeClass('d-none col-md-12').addClass('col-md-6');
             updatePreview();
+            // 確保編輯器在分割模式下仍可編輯
+            setTimeout(() => {
+                editor.prop('disabled', false);
+            }, 100);
             break;
     }
 }

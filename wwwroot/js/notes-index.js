@@ -123,26 +123,7 @@ function deleteNote(id) {
 
 // 分類篩選功能
 $(document).ready(function() {
-    $('.category-item').click(function() {
-        const categoryId = $(this).data('category-id');
-        
-        // 移除所有分類的 active 樣式
-        $('.category-item').removeClass('active');
-        
-        if (categoryId) {
-            // 添加選中樣式
-            $(this).addClass('active');
-            
-            // 篩選筆記
-            $('.note-card').hide();
-            $(`.note-card[data-category-id="${categoryId}"]`).show();
-        } else {
-            // 顯示所有筆記
-            $('.note-card').show();
-        }
-    });
-    
-    // 新增一個"全部"選項
+    // 新增一個"全部筆記"選項
     if ($('#categoryList .all-categories').length === 0) {
         $('#categoryList').prepend(`
             <li class="list-group-item category-item all-categories active" data-category-id="">
@@ -153,4 +134,49 @@ $(document).ready(function() {
             </li>
         `);
     }
-}); 
+    
+    // 使用事件委託處理點擊事件，包括動態新增的元素
+    $('#categoryList').on('click', '.category-item', function() {
+        const categoryId = $(this).data('category-id');
+        
+        // 移除所有分類的 active 樣式
+        $('.category-item').removeClass('active');
+        
+        // 添加選中樣式
+        $(this).addClass('active');
+        
+        if (categoryId === "" || categoryId === undefined) {
+            // 顯示所有筆記
+            $('.note-card').show();
+        } else {
+            // 篩選特定分類的筆記
+            $('.note-card').hide();
+            $(`.note-card[data-category-id="${categoryId}"]`).show();
+        }
+        
+        // 更新顯示狀態提示
+        updateNotesDisplay(categoryId);
+    });
+});
+
+// 更新筆記顯示狀態
+function updateNotesDisplay(categoryId) {
+    const visibleNotes = $('.note-card:visible');
+    const totalNotes = $('.note-card').length;
+    
+    if (visibleNotes.length === 0) {
+        if ($('#noNotesMessage').length === 0) {
+            $('#notesContainer').append(`
+                <div id="noNotesMessage" class="text-center text-muted py-5">
+                    <i class="fas fa-sticky-note fa-3x mb-3"></i>
+                    <p>此分類下尚無筆記</p>
+                    <a href="/Notes/Editor" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> 新增第一篇筆記
+                    </a>
+                </div>
+            `);
+        }
+    } else {
+        $('#noNotesMessage').remove();
+    }
+} 

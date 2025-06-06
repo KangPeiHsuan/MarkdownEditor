@@ -52,6 +52,16 @@ namespace MarkdownEditor.Controllers
         {
             try
             {
+                // 檢查標題是否重複
+                var duplicateNote = await _context.Notes
+                    .Where(n => n.Title == note.Title && n.CategoryId == note.CategoryId && n.Id != note.Id)
+                    .FirstOrDefaultAsync();
+                
+                if (duplicateNote != null)
+                {
+                    return Json(new { success = false, message = "此分類下已存在相同名稱的筆記，請重新命名" });
+                }
+
                 if (note.Id == 0)
                 {
                     // Create new note

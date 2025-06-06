@@ -20,6 +20,16 @@ namespace MarkdownEditor.Controllers
         {
             try
             {
+                // 檢查分類名稱是否重複
+                var duplicateCategory = await _context.Categories
+                    .Where(c => c.Name == category.Name)
+                    .FirstOrDefaultAsync();
+                
+                if (duplicateCategory != null)
+                {
+                    return Json(new { success = false, message = "分類名稱已存在，請重新命名" });
+                }
+
                 if (ModelState.IsValid)
                 {
                     category.CreatedAt = DateTime.Now;
@@ -42,6 +52,16 @@ namespace MarkdownEditor.Controllers
         {
             try
             {
+                // 檢查分類名稱是否重複（排除自己）
+                var duplicateCategory = await _context.Categories
+                    .Where(c => c.Name == category.Name && c.Id != category.Id)
+                    .FirstOrDefaultAsync();
+                
+                if (duplicateCategory != null)
+                {
+                    return Json(new { success = false, message = "分類名稱已存在，請重新命名" });
+                }
+
                 var existingCategory = await _context.Categories.FindAsync(category.Id);
                 if (existingCategory == null)
                 {
