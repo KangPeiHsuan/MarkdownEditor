@@ -1,4 +1,4 @@
-@model IEnumerable<Category>
+@model IEnumerable<Note>
 
 @{
     ViewData["Title"] = "筆記列表";
@@ -15,7 +15,10 @@
             </div>
             <div class="card-body p-0">
                 <ul class="list-group list-group-flush" id="categoryList">
-                    @foreach (var category in Model)
+                    @{
+                        var categories = ViewBag.Categories as IEnumerable<Category> ?? new List<Category>();
+                    }
+                    @foreach (var category in categories)
                     {
                         <li class="list-group-item d-flex justify-content-between align-items-center category-item" data-category-id="@category.Id">
                             <div>
@@ -48,49 +51,46 @@
         </div>
         
         <div id="notesContainer">
-            @foreach (var category in Model)
+            @foreach (var note in Model)
             {
-                @foreach (var note in category.Notes)
-                {
-                    <div class="card mb-3 note-card" data-category-id="@category.Id">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div class="flex-grow-1">
-                                    <h5 class="card-title">
-                                        <a href="@Url.Action("Editor", "Notes", new { id = note.Id })" class="text-decoration-none">
-                                            @note.Title
-                                        </a>
-                                    </h5>
-                                    <p class="card-text text-muted">
-                                        @if (note.Content.Length > 100)
-                                        {
-                                            @(note.Content.Substring(0, 100) + "...")
-                                        }
-                                        else
-                                        {
-                                            @note.Content
-                                        }
-                                    </p>
-                                    <small class="text-muted">
-                                        <i class="fas fa-folder"></i> @category.Name |
-                                        <i class="fas fa-clock"></i> @note.UpdatedAt.ToString("yyyy-MM-dd HH:mm")
-                                    </small>
-                                </div>
-                                <div class="btn-group">
-                                    <a href="@Url.Action("Editor", "Notes", new { id = note.Id })" class="btn btn-sm btn-outline-primary">
-                                        <i class="fas fa-edit"></i>
+                <div class="card mb-3 note-card" data-category-id="@note.CategoryId">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <h5 class="card-title">
+                                    <a href="@Url.Action("Editor", "Notes", new { id = note.Id })" class="text-decoration-none">
+                                        @note.Title
                                     </a>
-                                    <a href="@Url.Action("ExportPreview", "Notes", new { id = note.Id })" class="btn btn-sm btn-outline-success">
-                                        <i class="fas fa-download"></i>
-                                    </a>
-                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteNote(@note.Id)">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </div>
+                                </h5>
+                                <p class="card-text text-muted">
+                                    @if (note.Content.Length > 100)
+                                    {
+                                        @(note.Content.Substring(0, 100) + "...")
+                                    }
+                                    else
+                                    {
+                                        @note.Content
+                                    }
+                                </p>
+                                <small class="text-muted">
+                                    <i class="fas fa-folder"></i> @note.Category.Name |
+                                    <i class="fas fa-clock"></i> @note.UpdatedAt.ToString("yyyy-MM-dd HH:mm")
+                                </small>
+                            </div>
+                            <div class="btn-group">
+                                <a href="@Url.Action("Editor", "Notes", new { id = note.Id })" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <a href="@Url.Action("ExportPreview", "Notes", new { id = note.Id })" class="btn btn-sm btn-outline-success">
+                                    <i class="fas fa-download"></i>
+                                </a>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteNote(@note.Id)">
+                                    <i class="fas fa-trash"></i>
+                                </button>
                             </div>
                         </div>
                     </div>
-                }
+                </div>
             }
         </div>
     </div>

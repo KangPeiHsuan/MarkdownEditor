@@ -22,8 +22,16 @@ namespace MarkdownEditor.Controllers
         // GET: Notes
         public async Task<IActionResult> Index()
         {
-            var categories = await _context.Categories.Include(c => c.Notes).ToListAsync();
-            return View(categories);
+            // 取得所有筆記並按更新時間降序排列
+            var notes = await _context.Notes
+                .Include(n => n.Category)
+                .OrderByDescending(n => n.UpdatedAt)
+                .ToListAsync();
+
+            // 提供分類資料給側邊欄
+            ViewBag.Categories = await _context.Categories.Include(c => c.Notes).ToListAsync();
+            
+            return View(notes);
         }
 
         // GET: Notes/Editor/5
