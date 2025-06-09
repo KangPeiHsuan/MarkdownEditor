@@ -86,7 +86,8 @@ namespace MarkdownEditor.Services
                 1 => 16,
                 2 => 14,
                 3 => 13,
-                _ => 12
+                4 => 12,
+                _ => 11
             };
             return new PdfFont(baseFont, size, PdfFont.BOLD, BaseColor.Black);
         }
@@ -99,19 +100,23 @@ namespace MarkdownEditor.Services
             // 轉換換行符為統一格式
             html = html.Replace("\r\n", "\n").Replace("\r", "\n");
 
-            // 處理標題
-            var h1Pattern = @"<h1[^>]*>(.*?)</h1>";
-            var h2Pattern = @"<h2[^>]*>(.*?)</h2>";
+            // 處理標題（按層級順序，避免錯誤匹配）
+            var h4Pattern = @"<h4[^>]*>(.*?)</h4>";
             var h3Pattern = @"<h3[^>]*>(.*?)</h3>";
+            var h2Pattern = @"<h2[^>]*>(.*?)</h2>";
+            var h1Pattern = @"<h1[^>]*>(.*?)</h1>";
             
-            html = Regex.Replace(html, h1Pattern, m => 
-                $"\n[H1]{System.Web.HttpUtility.HtmlDecode(m.Groups[1].Value)}[/H1]\n", 
+            html = Regex.Replace(html, h4Pattern, m => 
+                $"\n[H4]{System.Web.HttpUtility.HtmlDecode(m.Groups[1].Value)}[/H4]\n", 
+                RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            html = Regex.Replace(html, h3Pattern, m => 
+                $"\n[H3]{System.Web.HttpUtility.HtmlDecode(m.Groups[1].Value)}[/H3]\n", 
                 RegexOptions.IgnoreCase | RegexOptions.Singleline);
             html = Regex.Replace(html, h2Pattern, m => 
                 $"\n[H2]{System.Web.HttpUtility.HtmlDecode(m.Groups[1].Value)}[/H2]\n", 
                 RegexOptions.IgnoreCase | RegexOptions.Singleline);
-            html = Regex.Replace(html, h3Pattern, m => 
-                $"\n[H3]{System.Web.HttpUtility.HtmlDecode(m.Groups[1].Value)}[/H3]\n", 
+            html = Regex.Replace(html, h1Pattern, m => 
+                $"\n[H1]{System.Web.HttpUtility.HtmlDecode(m.Groups[1].Value)}[/H1]\n", 
                 RegexOptions.IgnoreCase | RegexOptions.Singleline);
 
             // 處理粗體
@@ -125,6 +130,18 @@ namespace MarkdownEditor.Services
             html = Regex.Replace(html, italicPattern, m => 
                 $"[ITALIC]{System.Web.HttpUtility.HtmlDecode(m.Groups[2].Value)}[/ITALIC]", 
                 RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
+            // 處理 Markdown 粗體語法 **text**
+            var markdownBoldPattern = @"\*\*([^*]+)\*\*";
+            html = Regex.Replace(html, markdownBoldPattern, m => 
+                $"[BOLD]{m.Groups[1].Value}[/BOLD]", 
+                RegexOptions.IgnoreCase);
+
+            // 處理 Markdown 斜體語法 *text*
+            var markdownItalicPattern = @"(?<!\*)\*([^*]+)\*(?!\*)";
+            html = Regex.Replace(html, markdownItalicPattern, m => 
+                $"[ITALIC]{m.Groups[1].Value}[/ITALIC]", 
+                RegexOptions.IgnoreCase);
 
             // 處理列表項
             var listItemPattern = @"<li[^>]*>(.*?)</li>";
@@ -171,6 +188,14 @@ namespace MarkdownEditor.Services
                     headerParagraph.SpacingBefore = 12;
                     document.Add(headerParagraph);
                 }
+                else if (trimmedPara.StartsWith("[H4]") && trimmedPara.EndsWith("[/H4]"))
+                {
+                    var headerText = trimmedPara.Substring(4, trimmedPara.Length - 9);
+                    var headerParagraph = new PdfParagraph(headerText, GetChineseHeaderFont(4));
+                    headerParagraph.SpacingAfter = 6;
+                    headerParagraph.SpacingBefore = 10;
+                    document.Add(headerParagraph);
+                }
                 else
                 {
                     // 處理帶格式的文字段落
@@ -214,30 +239,68 @@ namespace MarkdownEditor.Services
 
         public byte[] ExportToWord(string markdown, string title)
         {
-            using var stream = new MemoryStream();
-            using var wordDocument = WordprocessingDocument.Create(stream, WordprocessingDocumentType.Document);
-            
-            var mainPart = wordDocument.AddMainDocumentPart();
-            mainPart.Document = new DocDocument();
-            var body = mainPart.Document.AppendChild(new Body());
-
-            // Add title
-            var titleParagraph = body.AppendChild(new DocParagraph());
-            var titleRun = titleParagraph.AppendChild(new Run());
-            var titleRunProperties = titleRun.AppendChild(new RunProperties());
-            titleRunProperties.AppendChild(new Bold());
-            titleRunProperties.AppendChild(new FontSize() { Val = "32" });
-            titleRun.AppendChild(new Text(title));
-
-            // Add empty line
-            body.AppendChild(new DocParagraph());
-
-            // Process markdown content
-            ProcessMarkdownToWord(body, markdown);
-
-            mainPart.Document.Save();
-            
-            return stream.ToArray();
+            try
+            {
+                using var stream = new MemoryStream();
+                
+                // 創建 WordprocessingDocument，需要手動控制關閉時機
+                var wordDocument = WordprocessingDocument.Create(stream, WordprocessingDocumentType.Document);
+                
+                // 創建主文檔部分
+                var mainPart = wordDocument.AddMainDocumentPart();
+                
+                // 創建文檔結構
+                var document = new DocDocument();
+                var body = new Body();
+                
+                // 添加標題
+                if (!string.IsNullOrWhiteSpace(title))
+                {
+                    var titleParagraph = new DocParagraph();
+                    var titleRun = new Run();
+                    var titleRunProperties = new RunProperties();
+                    titleRunProperties.Append(new Bold());
+                    titleRunProperties.Append(new FontSize() { Val = "56" }); // 28pt = 56 半點
+                    titleRun.Append(titleRunProperties);
+                    titleRun.Append(new Text(title) { Space = SpaceProcessingModeValues.Preserve });
+                    titleParagraph.Append(titleRun);
+                    body.Append(titleParagraph);
+                    
+                    // 標題後添加空行
+                    body.Append(new DocParagraph());
+                }
+                
+                // 處理 Markdown 內容
+                if (!string.IsNullOrWhiteSpace(markdown))
+                {
+                    ProcessMarkdownToWord(body, markdown);
+                }
+                else
+                {
+                    // 如果內容為空，添加提示
+                    var emptyParagraph = new DocParagraph();
+                    var emptyRun = new Run();
+                    emptyRun.Append(new Text("（此筆記內容為空）") { Space = SpaceProcessingModeValues.Preserve });
+                    emptyParagraph.Append(emptyRun);
+                    body.Append(emptyParagraph);
+                }
+                
+                // 設定文檔結構
+                document.Append(body);
+                mainPart.Document = document;
+                
+                // 保存並關閉文檔
+                mainPart.Document.Save();
+                wordDocument.Dispose();
+                
+                return stream.ToArray();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Word 匯出錯誤: {ex.Message}");
+                Console.WriteLine($"錯誤堆疊: {ex.StackTrace}");
+                return null;
+            }
         }
 
         private void ProcessMarkdownToWord(Body body, string markdown)
@@ -245,9 +308,8 @@ namespace MarkdownEditor.Services
             if (string.IsNullOrWhiteSpace(markdown))
                 return;
 
-            // 將 \r\n 轉換為 \n
+            // 將換行符統一處理
             markdown = markdown.Replace("\r\n", "\n").Replace("\r", "\n");
-
             var lines = markdown.Split('\n');
             
             foreach (var line in lines)
@@ -257,92 +319,232 @@ namespace MarkdownEditor.Services
                 if (string.IsNullOrEmpty(trimmedLine))
                 {
                     // 空行
-                    body.AppendChild(new DocParagraph());
+                    body.Append(new DocParagraph());
                     continue;
                 }
                 
-                var paragraph = body.AppendChild(new DocParagraph());
+                var paragraph = new DocParagraph();
                 
-                if (trimmedLine.StartsWith("# "))
+                if (trimmedLine.StartsWith("#### "))
                 {
-                    // H1 標題
-                    var run = paragraph.AppendChild(new Run());
-                    var runProperties = run.AppendChild(new RunProperties());
-                    runProperties.AppendChild(new Bold());
-                    runProperties.AppendChild(new FontSize() { Val = "28" });
-                    run.AppendChild(new Text(trimmedLine.Substring(2)));
-                }
-                else if (trimmedLine.StartsWith("## "))
-                {
-                    // H2 標題
-                    var run = paragraph.AppendChild(new Run());
-                    var runProperties = run.AppendChild(new RunProperties());
-                    runProperties.AppendChild(new Bold());
-                    runProperties.AppendChild(new FontSize() { Val = "24" });
-                    run.AppendChild(new Text(trimmedLine.Substring(3)));
+                    // H4 標題 - 16pt 粗體
+                    var text = trimmedLine.Substring(5).Trim();
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        var run = new Run();
+                        var runProperties = new RunProperties();
+                        runProperties.Append(new Bold());
+                        runProperties.Append(new FontSize() { Val = "32" }); // 16pt = 32 半點
+                        run.Append(runProperties);
+                        run.Append(new Text(text) { Space = SpaceProcessingModeValues.Preserve });
+                        paragraph.Append(run);
+                    }
                 }
                 else if (trimmedLine.StartsWith("### "))
                 {
-                    // H3 標題
-                    var run = paragraph.AppendChild(new Run());
-                    var runProperties = run.AppendChild(new RunProperties());
-                    runProperties.AppendChild(new Bold());
-                    runProperties.AppendChild(new FontSize() { Val = "20" });
-                    run.AppendChild(new Text(trimmedLine.Substring(4)));
+                    // H3 標題 - 18pt 粗體
+                    var text = trimmedLine.Substring(4).Trim();
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        var run = new Run();
+                        var runProperties = new RunProperties();
+                        runProperties.Append(new Bold());
+                        runProperties.Append(new FontSize() { Val = "36" }); // 18pt = 36 半點
+                        run.Append(runProperties);
+                        run.Append(new Text(text) { Space = SpaceProcessingModeValues.Preserve });
+                        paragraph.Append(run);
+                    }
+                }
+                else if (trimmedLine.StartsWith("## "))
+                {
+                    // H2 標題 - 20pt 粗體
+                    var text = trimmedLine.Substring(3).Trim();
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        var run = new Run();
+                        var runProperties = new RunProperties();
+                        runProperties.Append(new Bold());
+                        runProperties.Append(new FontSize() { Val = "40" }); // 20pt = 40 半點
+                        run.Append(runProperties);
+                        run.Append(new Text(text) { Space = SpaceProcessingModeValues.Preserve });
+                        paragraph.Append(run);
+                    }
+                }
+                else if (trimmedLine.StartsWith("# "))
+                {
+                    // H1 標題 - 24pt 粗體
+                    var text = trimmedLine.Substring(2).Trim();
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        var run = new Run();
+                        var runProperties = new RunProperties();
+                        runProperties.Append(new Bold());
+                        runProperties.Append(new FontSize() { Val = "48" }); // 24pt = 48 半點
+                        run.Append(runProperties);
+                        run.Append(new Text(text) { Space = SpaceProcessingModeValues.Preserve });
+                        paragraph.Append(run);
+                    }
                 }
                 else if (trimmedLine.StartsWith("- ") || trimmedLine.StartsWith("* "))
                 {
                     // 無序列表
-                    var run = paragraph.AppendChild(new Run());
-                    run.AppendChild(new Text("• " + trimmedLine.Substring(2)));
+                    var text = trimmedLine.Substring(2).Trim();
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        // 處理列表項目的內聯格式
+                        ProcessTextWithFormatting(paragraph, "• " + text);
+                    }
                 }
                 else if (trimmedLine.StartsWith("> "))
                 {
                     // 引用塊
-                    var run = paragraph.AppendChild(new Run());
-                    var runProperties = run.AppendChild(new RunProperties());
-                    runProperties.AppendChild(new Italic());
-                    run.AppendChild(new Text(trimmedLine.Substring(2)));
+                    var text = trimmedLine.Substring(2).Trim();
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        var run = new Run();
+                        var runProperties = new RunProperties();
+                        runProperties.Append(new Italic());
+                        run.Append(runProperties);
+                        ProcessTextWithFormattingInRun(run, text, runProperties);
+                    }
                 }
                 else
                 {
                     // 普通段落，處理內聯格式
                     ProcessTextWithFormatting(paragraph, trimmedLine);
                 }
+                
+                body.Append(paragraph);
             }
         }
 
         private void ProcessTextWithFormatting(DocParagraph paragraph, string text)
         {
-            // 處理粗體 **text** 和斜體 *text*
-            var parts = Regex.Split(text, @"(\*\*.*?\*\*|\*.*?\*)");
-            
-            foreach (var part in parts)
+            if (string.IsNullOrEmpty(text))
             {
-                if (string.IsNullOrEmpty(part)) continue;
-                
-                var run = paragraph.AppendChild(new Run());
-                
-                if (part.StartsWith("**") && part.EndsWith("**") && part.Length > 4)
-                {
-                    // 粗體
-                    var runProperties = run.AppendChild(new RunProperties());
-                    runProperties.AppendChild(new Bold());
-                    run.AppendChild(new Text(part.Substring(2, part.Length - 4)));
-                }
-                else if (part.StartsWith("*") && part.EndsWith("*") && part.Length > 2 && !part.StartsWith("**"))
-                {
-                    // 斜體
-                    var runProperties = run.AppendChild(new RunProperties());
-                    runProperties.AppendChild(new Italic());
-                    run.AppendChild(new Text(part.Substring(1, part.Length - 2)));
-                }
-                else
-                {
-                    // 普通文字
-                    run.AppendChild(new Text(part));
-                }
+                var emptyRun = new Run();
+                emptyRun.Append(new Text("") { Space = SpaceProcessingModeValues.Preserve });
+                paragraph.Append(emptyRun);
+                return;
             }
+
+            // 使用更複雜的處理來支援多種格式
+            ProcessComplexFormatting(paragraph, text);
+        }
+
+        private void ProcessComplexFormatting(DocParagraph paragraph, string text)
+        {
+            // 定義格式模式（按優先級排序）
+            var patterns = new List<(string pattern, string type)>
+            {
+                (@"(\*\*[^*]+\*\*)", "bold"),           // **粗體**
+                (@"(\+\+[^+]+\+\+)", "underline"),      // ++底線++
+                (@"(?<!\*)(\*[^*]+\*)(?!\*)", "italic") // *斜體*
+            };
+
+            var segments = new List<(string text, string format)>();
+            var currentText = text;
+            var currentIndex = 0;
+
+            while (currentIndex < currentText.Length)
+            {
+                var nextMatch = -1;
+                string matchType = "";
+                string matchText = "";
+                int matchStart = currentText.Length;
+
+                // 找到最早出現的格式
+                foreach (var (pattern, type) in patterns)
+                {
+                    var match = Regex.Match(currentText.Substring(currentIndex), pattern);
+                    if (match.Success && (currentIndex + match.Index) < matchStart)
+                    {
+                        matchStart = currentIndex + match.Index;
+                        nextMatch = matchStart;
+                        matchType = type;
+                        matchText = match.Value;
+                    }
+                }
+
+                if (nextMatch == -1)
+                {
+                    // 沒有更多格式，添加剩餘文字
+                    if (currentIndex < currentText.Length)
+                    {
+                        segments.Add((currentText.Substring(currentIndex), "normal"));
+                    }
+                    break;
+                }
+
+                // 添加格式前的普通文字
+                if (nextMatch > currentIndex)
+                {
+                    segments.Add((currentText.Substring(currentIndex, nextMatch - currentIndex), "normal"));
+                }
+
+                // 添加格式化文字
+                segments.Add((matchText, matchType));
+                currentIndex = nextMatch + matchText.Length;
+            }
+
+            // 將所有段落轉換為 Word 元素
+            foreach (var (segmentText, format) in segments)
+            {
+                if (string.IsNullOrEmpty(segmentText)) continue;
+
+                var run = new Run();
+                var runProperties = new RunProperties();
+
+                switch (format)
+                {
+                    case "bold":
+                        runProperties.Append(new Bold());
+                        runProperties.Append(new FontSize() { Val = "24" }); // 12pt = 24 半點
+                        var boldText = segmentText.Substring(2, segmentText.Length - 4);
+                        run.Append(runProperties);
+                        run.Append(new Text(boldText) { Space = SpaceProcessingModeValues.Preserve });
+                        break;
+
+                    case "underline":
+                        runProperties.Append(new Underline() { Val = UnderlineValues.Single });
+                        runProperties.Append(new FontSize() { Val = "24" }); // 12pt = 24 半點
+                        var underlineText = segmentText.Substring(2, segmentText.Length - 4);
+                        run.Append(runProperties);
+                        run.Append(new Text(underlineText) { Space = SpaceProcessingModeValues.Preserve });
+                        break;
+
+                    case "italic":
+                        runProperties.Append(new Italic());
+                        runProperties.Append(new FontSize() { Val = "24" }); // 12pt = 24 半點
+                        var italicText = segmentText.Substring(1, segmentText.Length - 2);
+                        run.Append(runProperties);
+                        run.Append(new Text(italicText) { Space = SpaceProcessingModeValues.Preserve });
+                        break;
+
+                    default: // normal
+                        runProperties.Append(new FontSize() { Val = "24" }); // 12pt = 24 半點
+                        run.Append(runProperties);
+                        run.Append(new Text(segmentText) { Space = SpaceProcessingModeValues.Preserve });
+                        break;
+                }
+
+                paragraph.Append(run);
+            }
+        }
+
+        private void ProcessTextWithFormattingInRun(Run baseRun, string text, RunProperties baseProperties)
+        {
+            // 簡化版本，用於已有基本格式的文字（如引用）
+            baseRun.Append(new Text(text) { Space = SpaceProcessingModeValues.Preserve });
+        }
+
+        // 移除舊的方法
+        private void ProcessItalicText(DocParagraph paragraph, string text)
+        {
+            // 這個方法已被 ProcessComplexFormatting 替代
+            var run = new Run();
+            run.Append(new Text(text) { Space = SpaceProcessingModeValues.Preserve });
+            paragraph.Append(run);
         }
     }
 } 

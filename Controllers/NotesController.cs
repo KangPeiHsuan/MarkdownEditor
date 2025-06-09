@@ -131,15 +131,31 @@ namespace MarkdownEditor.Controllers
         // POST: Notes/ExportWord/5
         public async Task<IActionResult> ExportWord(int id)
         {
-            var note = await _context.Notes.FirstOrDefaultAsync(n => n.Id == id);
-            if (note == null)
+            try
             {
-                return NotFound();
-            }
+                var note = await _context.Notes.FirstOrDefaultAsync(n => n.Id == id);
+                if (note == null)
+                {
+                    return NotFound();
+                }
 
-            var wordBytes = _exportService.ExportToWord(note.Content, note.Title);
-            
-            return File(wordBytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", $"{note.Title}.docx");
+                var content = note.Content ?? "";
+                var title = note.Title ?? "未命名筆記";
+                
+                var wordBytes = _exportService.ExportToWord(content, title);
+                
+                if (wordBytes == null || wordBytes.Length == 0)
+                {
+                    return BadRequest("Word 文檔生成失敗：無法產生有效的文檔內容。");
+                }
+                
+                return File(wordBytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", $"{title}.docx");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ExportWord 控制器錯誤: {ex.Message}");
+                return BadRequest($"Word 匯出過程發生錯誤: {ex.Message}");
+            }
         }
 
         // DELETE: Notes/Delete/5
