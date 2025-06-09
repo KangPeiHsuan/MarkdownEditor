@@ -9,6 +9,8 @@ using DocDocument = DocumentFormat.OpenXml.Wordprocessing.Document;
 using PdfDocument = iTextSharp.text.Document;
 using DocParagraph = DocumentFormat.OpenXml.Wordprocessing.Paragraph;
 using PdfParagraph = iTextSharp.text.Paragraph;
+using PdfFont = iTextSharp.text.Font;
+using DocFont = DocumentFormat.OpenXml.Wordprocessing.Font;
 
 namespace MarkdownEditor.Services
 {
@@ -22,82 +24,190 @@ namespace MarkdownEditor.Services
             
             document.Open();
             
+            // 建立支援中文的字體
+            var chineseFont = GetChineseFont();
+            var titleFont = GetChineseTitleFont();
+            
             // Add title
-            var titleFont = FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 18, BaseColor.Black);
             var titleParagraph = new PdfParagraph(title, titleFont);
             titleParagraph.Alignment = Element.ALIGN_CENTER;
             titleParagraph.SpacingAfter = 20;
             document.Add(titleParagraph);
             
             // Process HTML content
-            ProcessHtmlToPdf(document, html);
+            ProcessHtmlToPdf(document, html, chineseFont);
             
             document.Close();
             return stream.ToArray();
         }
 
-        private void ProcessHtmlToPdf(PdfDocument document, string html)
+        private BaseFont GetChineseBaseFont()
+        {
+            try
+            {
+                return BaseFont.CreateFont("STSong-Light", "UniGB-UCS2-H", BaseFont.NOT_EMBEDDED);
+            }
+            catch
+            {
+                try
+                {
+                    return BaseFont.CreateFont("c:/windows/fonts/simsun.ttc,0", BaseFont.IDENTITY_H, BaseFont.NOT_EMBEDDED);
+                }
+                catch
+                {
+                    return BaseFont.CreateFont(BaseFont.HELVETICA, BaseFont.CP1252, BaseFont.NOT_EMBEDDED);
+                }
+            }
+        }
+
+        private PdfFont GetChineseFont()
+        {
+            var baseFont = GetChineseBaseFont();
+            return new PdfFont(baseFont, 12, PdfFont.NORMAL, BaseColor.Black);
+        }
+
+        private PdfFont GetChineseTitleFont()
+        {
+            var baseFont = GetChineseBaseFont();
+            return new PdfFont(baseFont, 18, PdfFont.BOLD, BaseColor.Black);
+        }
+
+        private PdfFont GetChineseBoldFont()
+        {
+            var baseFont = GetChineseBaseFont();
+            return new PdfFont(baseFont, 12, PdfFont.BOLD, BaseColor.Black);
+        }
+
+        private PdfFont GetChineseHeaderFont(int level)
+        {
+            var baseFont = GetChineseBaseFont();
+            int size = level switch
+            {
+                1 => 16,
+                2 => 14,
+                3 => 13,
+                _ => 12
+            };
+            return new PdfFont(baseFont, size, PdfFont.BOLD, BaseColor.Black);
+        }
+
+        private void ProcessHtmlToPdf(PdfDocument document, string html, PdfFont normalFont)
         {
             if (string.IsNullOrWhiteSpace(html))
                 return;
 
-            // 簡單的HTML解析和轉換
-            var cleanText = html
-                .Replace("<p>", "")
-                .Replace("</p>", "\n\n")
-                .Replace("<br>", "\n")
-                .Replace("<br/>", "\n")
-                .Replace("<br />", "\n")
-                .Replace("&nbsp;", " ")
-                .Replace("&amp;", "&")
-                .Replace("&lt;", "<")
-                .Replace("&gt;", ">")
-                .Replace("&quot;", "\"");
+            // 轉換換行符為統一格式
+            html = html.Replace("\r\n", "\n").Replace("\r", "\n");
 
             // 處理標題
-            cleanText = System.Text.RegularExpressions.Regex.Replace(cleanText, @"<h1[^>]*>(.*?)</h1>", 
-                m => "\n" + m.Groups[1].Value + "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            cleanText = System.Text.RegularExpressions.Regex.Replace(cleanText, @"<h2[^>]*>(.*?)</h2>", 
-                m => "\n" + m.Groups[1].Value + "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            cleanText = System.Text.RegularExpressions.Regex.Replace(cleanText, @"<h3[^>]*>(.*?)</h3>", 
-                m => "\n" + m.Groups[1].Value + "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            var h1Pattern = @"<h1[^>]*>(.*?)</h1>";
+            var h2Pattern = @"<h2[^>]*>(.*?)</h2>";
+            var h3Pattern = @"<h3[^>]*>(.*?)</h3>";
+            
+            html = Regex.Replace(html, h1Pattern, m => 
+                $"\n[H1]{System.Web.HttpUtility.HtmlDecode(m.Groups[1].Value)}[/H1]\n", 
+                RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            html = Regex.Replace(html, h2Pattern, m => 
+                $"\n[H2]{System.Web.HttpUtility.HtmlDecode(m.Groups[1].Value)}[/H2]\n", 
+                RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            html = Regex.Replace(html, h3Pattern, m => 
+                $"\n[H3]{System.Web.HttpUtility.HtmlDecode(m.Groups[1].Value)}[/H3]\n", 
+                RegexOptions.IgnoreCase | RegexOptions.Singleline);
 
             // 處理粗體
-            cleanText = System.Text.RegularExpressions.Regex.Replace(cleanText, @"<strong[^>]*>(.*?)</strong>", 
-                "$1", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            cleanText = System.Text.RegularExpressions.Regex.Replace(cleanText, @"<b[^>]*>(.*?)</b>", 
-                "$1", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            var boldPattern = @"<(strong|b)[^>]*>(.*?)</(strong|b)>";
+            html = Regex.Replace(html, boldPattern, m => 
+                $"[BOLD]{System.Web.HttpUtility.HtmlDecode(m.Groups[2].Value)}[/BOLD]", 
+                RegexOptions.IgnoreCase | RegexOptions.Singleline);
 
             // 處理斜體
-            cleanText = System.Text.RegularExpressions.Regex.Replace(cleanText, @"<em[^>]*>(.*?)</em>", 
-                "$1", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            cleanText = System.Text.RegularExpressions.Regex.Replace(cleanText, @"<i[^>]*>(.*?)</i>", 
-                "$1", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            var italicPattern = @"<(em|i)[^>]*>(.*?)</(em|i)>";
+            html = Regex.Replace(html, italicPattern, m => 
+                $"[ITALIC]{System.Web.HttpUtility.HtmlDecode(m.Groups[2].Value)}[/ITALIC]", 
+                RegexOptions.IgnoreCase | RegexOptions.Singleline);
 
-            // 處理列表
-            cleanText = System.Text.RegularExpressions.Regex.Replace(cleanText, @"<ul[^>]*>", 
-                "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            cleanText = System.Text.RegularExpressions.Regex.Replace(cleanText, @"</ul>", 
-                "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            cleanText = System.Text.RegularExpressions.Regex.Replace(cleanText, @"<li[^>]*>(.*?)</li>", 
-                "• $1\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            // 處理列表項
+            var listItemPattern = @"<li[^>]*>(.*?)</li>";
+            html = Regex.Replace(html, listItemPattern, m => 
+                $"• {System.Web.HttpUtility.HtmlDecode(m.Groups[1].Value)}\n", 
+                RegexOptions.IgnoreCase | RegexOptions.Singleline);
 
-            // 移除其他HTML標籤
-            cleanText = System.Text.RegularExpressions.Regex.Replace(cleanText, @"<[^>]+>", "");
+            // 清理 HTML 標籤
+            html = Regex.Replace(html, @"<[^>]+>", "");
 
-            // 分段處理
-            var paragraphs = cleanText.Split(new string[] { "\n\n" }, StringSplitOptions.RemoveEmptyEntries);
-            
-            var normalFont = FontFactory.GetFont(FontFactory.HELVETICA, 12, BaseColor.Black);
-            
+            // 解碼 HTML 實體
+            html = System.Web.HttpUtility.HtmlDecode(html);
+
+            // 處理段落
+            var paragraphs = html.Split(new string[] { "\n\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+
             foreach (var para in paragraphs)
             {
                 var trimmedPara = para.Trim();
-                if (!string.IsNullOrEmpty(trimmedPara))
+                if (string.IsNullOrEmpty(trimmedPara)) continue;
+
+                // 處理標題
+                if (trimmedPara.StartsWith("[H1]") && trimmedPara.EndsWith("[/H1]"))
                 {
-                    var paragraph = new PdfParagraph(trimmedPara, normalFont);
-                    paragraph.SpacingAfter = 10;
+                    var headerText = trimmedPara.Substring(4, trimmedPara.Length - 9);
+                    var headerParagraph = new PdfParagraph(headerText, GetChineseHeaderFont(1));
+                    headerParagraph.SpacingAfter = 12;
+                    headerParagraph.SpacingBefore = 16;
+                    document.Add(headerParagraph);
+                }
+                else if (trimmedPara.StartsWith("[H2]") && trimmedPara.EndsWith("[/H2]"))
+                {
+                    var headerText = trimmedPara.Substring(4, trimmedPara.Length - 9);
+                    var headerParagraph = new PdfParagraph(headerText, GetChineseHeaderFont(2));
+                    headerParagraph.SpacingAfter = 10;
+                    headerParagraph.SpacingBefore = 14;
+                    document.Add(headerParagraph);
+                }
+                else if (trimmedPara.StartsWith("[H3]") && trimmedPara.EndsWith("[/H3]"))
+                {
+                    var headerText = trimmedPara.Substring(4, trimmedPara.Length - 9);
+                    var headerParagraph = new PdfParagraph(headerText, GetChineseHeaderFont(3));
+                    headerParagraph.SpacingAfter = 8;
+                    headerParagraph.SpacingBefore = 12;
+                    document.Add(headerParagraph);
+                }
+                else
+                {
+                    // 處理帶格式的文字段落
+                    var paragraph = new PdfParagraph();
+                    ProcessFormattedText(paragraph, trimmedPara);
+                    paragraph.SpacingAfter = 8;
                     document.Add(paragraph);
+                }
+            }
+        }
+
+        private void ProcessFormattedText(PdfParagraph paragraph, string text)
+        {
+            var parts = Regex.Split(text, @"(\[BOLD\].*?\[/BOLD\]|\[ITALIC\].*?\[/ITALIC\])");
+            
+            foreach (var part in parts)
+            {
+                if (string.IsNullOrEmpty(part)) continue;
+
+                if (part.StartsWith("[BOLD]") && part.EndsWith("[/BOLD]"))
+                {
+                    var boldText = part.Substring(6, part.Length - 13);
+                    var chunk = new Chunk(boldText, GetChineseBoldFont());
+                    paragraph.Add(chunk);
+                }
+                else if (part.StartsWith("[ITALIC]") && part.EndsWith("[/ITALIC]"))
+                {
+                    var italicText = part.Substring(8, part.Length - 17);
+                    var baseFont = GetChineseBaseFont();
+                    var italicFont = new PdfFont(baseFont, 12, PdfFont.ITALIC, BaseColor.Black);
+                    var chunk = new Chunk(italicText, italicFont);
+                    paragraph.Add(chunk);
+                }
+                else
+                {
+                    var chunk = new Chunk(part, GetChineseFont());
+                    paragraph.Add(chunk);
                 }
             }
         }
@@ -134,6 +244,9 @@ namespace MarkdownEditor.Services
         {
             if (string.IsNullOrWhiteSpace(markdown))
                 return;
+
+            // 將 \r\n 轉換為 \n
+            markdown = markdown.Replace("\r\n", "\n").Replace("\r", "\n");
 
             var lines = markdown.Split('\n');
             
@@ -193,7 +306,7 @@ namespace MarkdownEditor.Services
                 }
                 else
                 {
-                    // 普通段落
+                    // 普通段落，處理內聯格式
                     ProcessTextWithFormatting(paragraph, trimmedLine);
                 }
             }
@@ -202,7 +315,7 @@ namespace MarkdownEditor.Services
         private void ProcessTextWithFormatting(DocParagraph paragraph, string text)
         {
             // 處理粗體 **text** 和斜體 *text*
-            var parts = System.Text.RegularExpressions.Regex.Split(text, @"(\*\*.*?\*\*|\*.*?\*)");
+            var parts = Regex.Split(text, @"(\*\*.*?\*\*|\*.*?\*)");
             
             foreach (var part in parts)
             {
@@ -217,7 +330,7 @@ namespace MarkdownEditor.Services
                     runProperties.AppendChild(new Bold());
                     run.AppendChild(new Text(part.Substring(2, part.Length - 4)));
                 }
-                else if (part.StartsWith("*") && part.EndsWith("*") && part.Length > 2)
+                else if (part.StartsWith("*") && part.EndsWith("*") && part.Length > 2 && !part.StartsWith("**"))
                 {
                     // 斜體
                     var runProperties = run.AppendChild(new RunProperties());

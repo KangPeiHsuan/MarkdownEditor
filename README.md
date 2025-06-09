@@ -172,6 +172,14 @@ MarkdownEditor/
 3. 提交變更
 4. 建立 Pull Request
 
+## 修正紀錄
+
+本專案的所有修正紀錄都統一整理在 **[Change-Logs 資料夾](Change-Logs/修正紀錄索引.md)** 中。
+
+### 快速連結
+- 📋 [修正紀錄索引](Change-Logs/修正紀錄索引.md) - 查看所有修正紀錄
+- 🔍 [最新修正紀錄](Change-Logs/2025-06-09_第二次修正紀錄.md) - 查看最近的修正內容
+
 ## 聯絡資訊
 
 如有問題或建議，請透過 GitHub Issues 聯絡。 

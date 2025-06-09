@@ -10,6 +10,7 @@ namespace MarkdownEditor.Services
         {
             _pipeline = new MarkdownPipelineBuilder()
                 .UseAdvancedExtensions()
+                .UseSoftlineBreakAsHardlineBreak()
                 .Build();
         }
 
